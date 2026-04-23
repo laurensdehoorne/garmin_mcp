@@ -8,7 +8,6 @@ import sys
 import requests
 from mcp.server.fastmcp import FastMCP
 
-from garth.exc import GarthHTTPError
 from garminconnect import Garmin, GarminConnectAuthenticationError
 
 # Import all modules
@@ -80,7 +79,6 @@ elif password_file:
         password = password_file.read().rstrip()
 
 tokenstore = os.getenv("GARMINTOKENS") or "~/.garminconnect"
-tokenstore_base64 = os.getenv("GARMINTOKENS_BASE64") or "~/.garminconnect_base64"
 is_cn = os.getenv("GARMIN_IS_CN", "false").lower() in ("true", "1", "yes")
 
 
@@ -95,25 +93,17 @@ def init_api(email, password):
             file=sys.stderr,
         )
 
-        # Using Oauth1 and Oauth2 tokens from base64 encoded string
-        # print(
-        #     f"Trying to login to Garmin Connect using token data from file '{tokenstore_base64}'...\n"
-        # )
-        # dir_path = os.path.expanduser(tokenstore_base64)
-        # with open(dir_path, "r") as token_file:
-        #     tokenstore = token_file.read()
-
         # Suppress stderr for token validation to avoid confusing library errors
         old_stderr = sys.stderr
         sys.stderr = io.StringIO()
 
         try:
             garmin = Garmin(is_cn=is_cn)
-            garmin.login(tokenstore)
+            garmin.login(tokenstore=os.path.expanduser(tokenstore))
         finally:
             sys.stderr = old_stderr
 
-    except (FileNotFoundError, GarthHTTPError, GarminConnectAuthenticationError):
+    except Exception:
         # Session is expired. You'll need to log in again
 
         # Check if we're in a non-interactive environment without credentials
@@ -138,28 +128,13 @@ def init_api(email, password):
             garmin = Garmin(
                 email=email, password=password, is_cn=is_cn, prompt_mfa=get_mfa
             )
-            garmin.login()
-            # Save Oauth1 and Oauth2 token files to directory for next login
-            garmin.garth.dump(tokenstore)
+            # login() with tokenstore saves tokens automatically in v0.3.x
+            garmin.login(tokenstore=os.path.expanduser(tokenstore))
             print(
-                f"Oauth tokens stored in '{tokenstore}' directory for future use. (first method)\n",
+                f"Oauth tokens stored in '{tokenstore}' for future use.\n",
                 file=sys.stderr,
             )
-            # Encode Oauth1 and Oauth2 tokens to base64 string and safe to file for next login (alternative way)
-            token_base64 = garmin.garth.dumps()
-            dir_path = os.path.expanduser(tokenstore_base64)
-            with open(dir_path, "w") as token_file:
-                token_file.write(token_base64)
-            print(
-                f"Oauth tokens encoded as base64 string and saved to '{dir_path}' file for future use. (second method)\n",
-                file=sys.stderr,
-            )
-        except (
-            FileNotFoundError,
-            GarthHTTPError,
-            GarminConnectAuthenticationError,
-            requests.exceptions.HTTPError,
-        ) as err:
+        except Exception as err:
             error_msg = str(err)
 
             # Provide clean, actionable error messages
@@ -170,23 +145,6 @@ def init_api(email, password):
                     print("MFA code may be incorrect or expired.", file=sys.stderr)
                 else:
                     print("Invalid email or password.", file=sys.stderr)
-            elif isinstance(err, GarthHTTPError):
-                if "401" in error_msg or "Unauthorized" in error_msg:
-                    print(
-                        "Invalid credentials. Please check your email and password.",
-                        file=sys.stderr,
-                    )
-                elif "429" in error_msg:
-                    print(
-                        "Too many requests. Please wait and try again.", file=sys.stderr
-                    )
-                elif "500" in error_msg or "503" in error_msg:
-                    print(
-                        "Garmin Connect service issue. Please try again later.",
-                        file=sys.stderr,
-                    )
-                else:
-                    print(f"Error: {error_msg.split(':')[0]}", file=sys.stderr)
             elif isinstance(err, requests.exceptions.HTTPError):
                 print("Network error. Please check your connection.", file=sys.stderr)
             else:

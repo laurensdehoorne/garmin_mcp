@@ -10,12 +10,10 @@ import sys
 import getpass
 
 import requests
-from garth.exc import GarthHTTPError
 from garminconnect import Garmin, GarminConnectAuthenticationError
 
 from garmin_mcp.token_utils import (
     get_token_path,
-    get_token_base64_path,
     token_exists,
     validate_tokens,
     get_token_info,
@@ -76,12 +74,11 @@ def get_credentials() -> tuple[str, str]:
     return email, password
 
 
-def authenticate(token_path: str, token_base64_path: str, force_reauth: bool = False, is_cn: bool = False) -> bool:
+def authenticate(token_path: str, force_reauth: bool = False, is_cn: bool = False) -> bool:
     """Authenticate with Garmin Connect and save tokens.
 
     Args:
         token_path: Path to save token directory
-        token_base64_path: Path to save base64 token file
         force_reauth: Force re-authentication even if tokens exist
         is_cn: Use Garmin Connect China (garmin.cn) instead of international
 
@@ -125,28 +122,17 @@ def authenticate(token_path: str, token_base64_path: str, force_reauth: bool = F
 
     try:
         garmin = Garmin(email=email, password=password, is_cn=is_cn, prompt_mfa=get_mfa)
-        garmin.login()
-
-        # Save tokens to directory
-        garmin.garth.dump(token_path)
+        # login() with tokenstore authenticates and saves tokens in v0.3.x
+        garmin.login(tokenstore=os.path.expanduser(token_path))
         print(f"\n✓ OAuth tokens saved to: {os.path.expanduser(token_path)}")
-
-        # Save tokens as base64
-        token_base64 = garmin.garth.dumps()
-        expanded_base64_path = os.path.expanduser(token_base64_path)
-        with open(expanded_base64_path, "w") as token_file:
-            token_file.write(token_base64)
-        print(f"✓ OAuth tokens (base64) saved to: {expanded_base64_path}")
 
         # Verify tokens work
         print("\nVerifying tokens...")
         try:
-            # Try to get user's full name as a simple verification
             full_name = garmin.get_full_name()
             print(f"✓ Authentication successful!")
             print(f"  Logged in as: {full_name}")
         except Exception:
-            # Fallback: just confirm tokens were saved
             print(f"✓ Authentication successful!")
             print(f"  OAuth tokens saved and ready to use.")
 
@@ -165,7 +151,6 @@ def authenticate(token_path: str, token_base64_path: str, force_reauth: bool = F
         error_msg = str(e)
         print(f"\n✗ Authentication failed", file=sys.stderr)
 
-        # Provide helpful hints based on error type
         if "MFA" in error_msg or "code" in error_msg.lower():
             print("  MFA code may be incorrect or expired.", file=sys.stderr)
             print("  Please request a new code and try again.", file=sys.stderr)
@@ -174,21 +159,6 @@ def authenticate(token_path: str, token_base64_path: str, force_reauth: bool = F
             print("  Please check your Garmin Connect credentials.", file=sys.stderr)
         else:
             print(f"  {error_msg}", file=sys.stderr)
-
-        return False
-
-    except GarthHTTPError as e:
-        error_msg = str(e)
-        print(f"\n✗ Authentication error", file=sys.stderr)
-
-        if "429" in error_msg:
-            print("  Too many requests. Please wait a few minutes and try again.", file=sys.stderr)
-        elif "401" in error_msg or "403" in error_msg:
-            print("  Invalid credentials. Please check your email and password.", file=sys.stderr)
-        elif "500" in error_msg or "503" in error_msg:
-            print("  Garmin Connect service issue. Please try again later.", file=sys.stderr)
-        else:
-            print(f"  {error_msg.split(':')[0]}", file=sys.stderr)
 
         return False
 
@@ -303,9 +273,8 @@ Examples:
 
     args = parser.parse_args()
 
-    # Get token paths
+    # Get token path
     token_path = args.token_path or get_token_path()
-    token_base64_path = get_token_base64_path()
 
     # Resolve is_cn: CLI flag takes priority, then env var, then default False
     if args.is_cn:
@@ -325,7 +294,7 @@ Examples:
         sys.exit(0 if success else 1)
 
     # Authenticate mode
-    success = authenticate(token_path, token_base64_path, args.force_reauth, is_cn)
+    success = authenticate(token_path, args.force_reauth, is_cn)
     sys.exit(0 if success else 1)
 
 

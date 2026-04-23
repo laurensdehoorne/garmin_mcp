@@ -19,7 +19,7 @@ Garmin's API is accessed via the awesome [python-garminconnect](https://github.c
 
 ### Tool Coverage
 
-This MCP server implements **96+ tools** covering ~89% of the [python-garminconnect](https://github.com/cyberjunky/python-garminconnect) library (v0.2.38):
+This MCP server implements **96+ tools** covering ~89% of the [python-garminconnect](https://github.com/cyberjunky/python-garminconnect) library (v0.3.3):
 
 - ✅ Activity Management (14 tools)
 - ✅ Health & Wellness (31 tools) - includes custom lightweight summary tools
@@ -57,7 +57,7 @@ The easiest way to use this MCP server with Claude Desktop is to authenticate on
 
 #### Prerequisites
 
-- Python 3.12+
+- Python 3.12+ (required)
 - Garmin Connect account
 - MFA may be required if enabled on your account
 
@@ -75,7 +75,7 @@ uvx --python 3.12 --from git+https://github.com/Taxuspt/garmin_mcp garmin-mcp-au
 # - Password (or set GARMIN_PASSWORD env var)
 # - MFA code (if enabled on your account)
 
-# OAuth tokens will be saved to ~/.garminconnect
+# OAuth tokens will be saved to ~/.garminconnect/garmin_tokens.json
 ```
 
 You can verify your credentials at any time with
@@ -89,6 +89,8 @@ GARMIN_EMAIL=your@email.com GARMIN_PASSWORD=secret garmin-mcp-auth
 ```
 
 If you don't have MFA enabled you can also skip `garmin-mcp-auth` and pass `GARMIN_EMAIL` and `GARMIN_PASSWORD` as env variables directly to Claude Desktop (or other MCP client, if supported), see below for an example.
+
+> **Upgrading from v0.2.x?** The authentication format changed in v0.3.0 — old tokens are not compatible. Delete `~/.garminconnect` and run `garmin-mcp-auth` to generate new tokens.
 
 #### Step 2: Configure Claude Desktop
 
@@ -452,7 +454,7 @@ GARMIN_EMAIL=you@example.com GARMIN_PASSWORD=secret garmin-mcp-auth
 # Verify existing tokens
 garmin-mcp-auth --verify
 
-# Force re-authentication (e.g., when tokens expire)
+# Force re-authentication
 garmin-mcp-auth --force-reauth
 
 # Use custom token location
@@ -511,9 +513,9 @@ Solution:
 3. Enter credentials and MFA code
 4. Restart Claude Desktop
 
-**Token Expired**
+**Token Expired / Invalid**
 
-OAuth tokens expire periodically (approximately every 6 months). Re-authenticate:
+Tokens are automatically refreshed by the library. If they become invalid (e.g., after a password change or upgrade from v0.2.x), re-authenticate:
 ```bash
 garmin-mcp-auth --force-reauth
 ```
