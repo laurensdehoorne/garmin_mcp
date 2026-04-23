@@ -904,4 +904,62 @@ def register_tools(app):
         except Exception as e:
             return f"Error retrieving morning training readiness: {str(e)}"
 
+    @app.tool()
+    async def get_max_metrics(date: str) -> str:
+        """Get max metric data (VO2 max, etc.) for a date
+
+        Args:
+            date: Date in YYYY-MM-DD format
+        """
+        try:
+            data = garmin_client.get_max_metrics(date)
+            if not data:
+                return f"No max metrics found for {date}"
+            return json.dumps(data, indent=2)
+        except Exception as e:
+            return f"Error retrieving max metrics: {str(e)}"
+
+    @app.tool()
+    async def get_intensity_minutes_data(date: str) -> str:
+        """Get intensity minutes data for a date
+
+        Args:
+            date: Date in YYYY-MM-DD format
+        """
+        try:
+            data = garmin_client.get_intensity_minutes_data(date)
+            if not data:
+                return f"No intensity minutes data found for {date}"
+            return json.dumps(data, indent=2)
+        except Exception as e:
+            return f"Error retrieving intensity minutes data: {str(e)}"
+
+    @app.tool()
+    async def get_running_tolerance(start_date: str, end_date: str, aggregation: str = "weekly") -> str:
+        """Get running tolerance data for a date range
+
+        Args:
+            start_date: Start date in YYYY-MM-DD format
+            end_date: End date in YYYY-MM-DD format
+            aggregation: 'daily' or 'weekly' (default: 'weekly')
+        """
+        try:
+            data = garmin_client.get_running_tolerance(start_date, end_date, aggregation)
+            if not data:
+                return f"No running tolerance data found between {start_date} and {end_date}"
+            return json.dumps(data, indent=2)
+        except Exception as e:
+            return f"Error retrieving running tolerance data: {str(e)}"
+
+    @app.tool()
+    async def get_cycling_ftp() -> str:
+        """Get cycling Functional Threshold Power (FTP) information"""
+        try:
+            data = garmin_client.get_cycling_ftp()
+            if not data:
+                return "No cycling FTP data found"
+            return json.dumps(data, indent=2)
+        except Exception as e:
+            return f"Error retrieving cycling FTP data: {str(e)}"
+
     return app

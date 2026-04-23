@@ -212,4 +212,25 @@ def register_tools(app):
         except Exception as e:
             return f"Error adding weight measurement with timestamps: {str(e)}"
 
+    @app.tool()
+    async def delete_weigh_in(weight_pk: str, date: str) -> str:
+        """Delete a specific weigh-in by its version/primary key
+
+        Use get_daily_weigh_ins first to find the weight_pk for a specific measurement.
+
+        Args:
+            weight_pk: Version/primary key of the weigh-in to delete
+            date: Date of the weigh-in in YYYY-MM-DD format
+        """
+        try:
+            garmin_client.delete_weigh_in(weight_pk, date)
+            return json.dumps({
+                "status": "success",
+                "date": date,
+                "weight_pk": weight_pk,
+                "message": "Weigh-in deleted successfully"
+            }, indent=2)
+        except Exception as e:
+            return f"Error deleting weigh-in: {str(e)}"
+
     return app

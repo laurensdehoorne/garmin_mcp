@@ -203,4 +203,60 @@ def register_tools(app):
         except Exception as e:
             return f"Error removing gear from activity: {str(e)}"
 
+    @app.tool()
+    async def get_gear_activities(gear_uuid: str, limit: int = 50) -> str:
+        """Get activities where a specific piece of gear was used
+
+        Args:
+            gear_uuid: UUID of the gear (get from get_gear)
+            limit: Maximum number of activities to return (default 50, max 1000)
+        """
+        try:
+            limit = min(max(1, limit), 1000)
+            activities = garmin_client.get_gear_activities(gear_uuid, limit=limit)
+            if not activities:
+                return f"No activities found for gear {gear_uuid}"
+
+            curated = {
+                "gear_uuid": gear_uuid,
+                "count": len(activities),
+                "activities": []
+            }
+            for a in activities:
+                activity = {
+                    "id": a.get('activityId'),
+                    "name": a.get('activityName'),
+                    "type": a.get('activityType', {}).get('typeKey'),
+                    "start_time": a.get('startTimeLocal'),
+                    "distance_meters": a.get('distance'),
+                    "duration_seconds": a.get('duration'),
+                }
+                curated["activities"].append({k: v for k, v in activity.items() if v is not None})
+
+            return json.dumps(curated, indent=2)
+        except Exception as e:
+            return f"Error retrieving gear activities: {str(e)}"
+
+    @app.tool()
+    async def set_gear_default(gear_uuid: str, activity_type: str, make_default: bool = True) -> str:
+        """Set or unset a gear item as the default for an activity type
+
+        Args:
+            gear_uuid: UUID of the gear (get from get_gear)
+            activity_type: Activity type string (e.g., 'running', 'cycling', 'swimming')
+            make_default: True to set as default, False to remove as default (default True)
+        """
+        try:
+            garmin_client.set_gear_default(activity_type, gear_uuid, defaultGear=make_default)
+            action = "set as default" if make_default else "removed as default"
+            return json.dumps({
+                "status": "success",
+                "gear_uuid": gear_uuid,
+                "activity_type": activity_type,
+                "is_default": make_default,
+                "message": f"Gear {action} for {activity_type}"
+            }, indent=2)
+        except Exception as e:
+            return f"Error updating gear default: {str(e)}"
+
     return app

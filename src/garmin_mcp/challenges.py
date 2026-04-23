@@ -593,4 +593,73 @@ def register_tools(app):
         except Exception as e:
             return f"Error retrieving in-progress virtual challenges: {str(e)}"
 
+    @app.tool()
+    async def get_available_badges() -> str:
+        """Get all badges available to earn (including exclusive badges)"""
+        try:
+            badges = garmin_client.get_available_badges()
+            if not badges:
+                return "No available badges found."
+
+            curated_badges = []
+            for badge in badges:
+                category_id = badge.get("badgeCategoryId")
+                difficulty_id = badge.get("badgeDifficultyId")
+                unit_id = badge.get("badgeUnitId")
+
+                target = badge.get("badgeTargetValue")
+                formatted_target = _format_badge_value(target, unit_id)
+
+                curated_badge = {
+                    "name": badge.get("badgeName"),
+                    "category": BADGE_CATEGORY_MAPPING.get(category_id, f"category_{category_id}"),
+                    "difficulty": BADGE_DIFFICULTY_MAPPING.get(difficulty_id, f"level_{difficulty_id}"),
+                    "points": badge.get("badgePoints"),
+                    "target": formatted_target,
+                    "start_date": _parse_iso_date(badge.get("badgeStartDate")),
+                    "end_date": _parse_iso_date(badge.get("badgeEndDate")),
+                    "is_exclusive": badge.get("badgeIsExclusive", False),
+                }
+                curated_badges.append({k: v for k, v in curated_badge.items() if v is not None})
+
+            return json.dumps({"total": len(curated_badges), "badges": curated_badges}, indent=2)
+        except Exception as e:
+            return f"Error retrieving available badges: {str(e)}"
+
+    @app.tool()
+    async def get_in_progress_badges() -> str:
+        """Get badges that the user has started but not yet completed"""
+        try:
+            badges = garmin_client.get_in_progress_badges()
+            if not badges:
+                return "No in-progress badges found."
+
+            curated_badges = []
+            for badge in badges:
+                category_id = badge.get("badgeCategoryId")
+                difficulty_id = badge.get("badgeDifficultyId")
+                unit_id = badge.get("badgeUnitId")
+
+                progress = badge.get("badgeProgressValue")
+                target = badge.get("badgeTargetValue")
+                formatted_progress = _format_badge_value(progress, unit_id)
+                formatted_target = _format_badge_value(target, unit_id)
+
+                curated_badge = {
+                    "name": badge.get("badgeName"),
+                    "category": BADGE_CATEGORY_MAPPING.get(category_id, f"category_{category_id}"),
+                    "difficulty": BADGE_DIFFICULTY_MAPPING.get(difficulty_id, f"level_{difficulty_id}"),
+                    "points": badge.get("badgePoints"),
+                    "progress": formatted_progress,
+                    "target": formatted_target,
+                    "progress_percent": _calculate_progress_percent(progress, target),
+                    "start_date": _parse_iso_date(badge.get("badgeStartDate")),
+                    "end_date": _parse_iso_date(badge.get("badgeEndDate")),
+                }
+                curated_badges.append({k: v for k, v in curated_badge.items() if v is not None})
+
+            return json.dumps({"total": len(curated_badges), "badges": curated_badges}, indent=2)
+        except Exception as e:
+            return f"Error retrieving in-progress badges: {str(e)}"
+
     return app

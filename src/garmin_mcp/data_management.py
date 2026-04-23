@@ -117,4 +117,25 @@ def register_tools(app):
         except Exception as e:
             return f"Error adding hydration data: {str(e)}"
 
+    @app.tool()
+    async def delete_blood_pressure(version: str, date: str) -> str:
+        """Delete a specific blood pressure measurement
+
+        Use get_blood_pressure first to find the version for a specific measurement.
+
+        Args:
+            version: Version identifier of the blood pressure measurement to delete
+            date: Date of the measurement in YYYY-MM-DD format
+        """
+        try:
+            garmin_client.delete_blood_pressure(version, date)
+            return json.dumps({
+                "status": "success",
+                "date": date,
+                "version": version,
+                "message": "Blood pressure measurement deleted successfully"
+            }, indent=2)
+        except Exception as e:
+            return f"Error deleting blood pressure measurement: {str(e)}"
+
     return app

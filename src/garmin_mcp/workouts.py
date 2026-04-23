@@ -551,4 +551,40 @@ def register_tools(app):
         except Exception as e:
             return f"Error scheduling workout: {str(e)}"
 
+    @app.tool()
+    async def get_scheduled_workout_by_id(scheduled_workout_id: int) -> str:
+        """Get a specific scheduled workout by its schedule ID
+
+        Note: scheduled_workout_id is different from workout_id.
+        Get scheduled_workout_id from get_scheduled_workouts.
+
+        Args:
+            scheduled_workout_id: ID of the scheduled workout entry
+        """
+        try:
+            data = garmin_client.get_scheduled_workout_by_id(scheduled_workout_id)
+            if not data:
+                return f"No scheduled workout found with ID {scheduled_workout_id}"
+            return json.dumps(data, indent=2)
+        except Exception as e:
+            return f"Error retrieving scheduled workout: {str(e)}"
+
+    @app.tool()
+    async def unschedule_workout(scheduled_workout_id: int) -> str:
+        """Remove a workout from the calendar without deleting the workout template
+
+        Args:
+            scheduled_workout_id: ID of the scheduled workout entry to remove
+                                  (get from get_scheduled_workouts, not the workout_id)
+        """
+        try:
+            garmin_client.unschedule_workout(scheduled_workout_id)
+            return json.dumps({
+                "status": "success",
+                "scheduled_workout_id": scheduled_workout_id,
+                "message": f"Scheduled workout {scheduled_workout_id} removed from calendar"
+            }, indent=2)
+        except Exception as e:
+            return f"Error unscheduling workout: {str(e)}"
+
     return app

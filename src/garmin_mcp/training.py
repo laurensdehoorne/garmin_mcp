@@ -668,4 +668,45 @@ def register_tools(app):
         except Exception as e:
             return f"Error requesting data reload: {str(e)}"
 
+    @app.tool()
+    async def get_training_plans() -> str:
+        """Get all available training plans from Garmin Connect"""
+        try:
+            data = garmin_client.get_training_plans()
+            if not data:
+                return "No training plans found."
+            return json.dumps(data, indent=2)
+        except Exception as e:
+            return f"Error retrieving training plans: {str(e)}"
+
+    @app.tool()
+    async def get_training_plan_by_id(plan_id: int) -> str:
+        """Get detailed phased schedule for a specific training plan
+
+        Args:
+            plan_id: Training plan ID (get from get_training_plans)
+        """
+        try:
+            data = garmin_client.get_training_plan_by_id(plan_id)
+            if not data:
+                return f"No training plan found with ID {plan_id}"
+            return json.dumps(data, indent=2)
+        except Exception as e:
+            return f"Error retrieving training plan: {str(e)}"
+
+    @app.tool()
+    async def get_adaptive_training_plan_by_id(plan_id: int) -> str:
+        """Get details for a specific adaptive (Garmin Coach) training plan
+
+        Args:
+            plan_id: Adaptive training plan ID
+        """
+        try:
+            data = garmin_client.get_adaptive_training_plan_by_id(plan_id)
+            if not data:
+                return f"No adaptive training plan found with ID {plan_id}"
+            return json.dumps(data, indent=2)
+        except Exception as e:
+            return f"Error retrieving adaptive training plan: {str(e)}"
+
     return app

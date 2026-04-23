@@ -460,4 +460,202 @@ def register_tools(app):
         except Exception as e:
             return f"Error retrieving activity types: {str(e)}"
 
+    @app.tool()
+    async def get_last_activity() -> str:
+        """Get the most recent activity"""
+        try:
+            activities = garmin_client.get_activities(0, 1)
+            if not activities:
+                return "No activities found."
+
+            activity = activities[0] if isinstance(activities, list) else None
+            if not activity:
+                return "No activities found."
+
+            curated = {
+                "id": activity.get('activityId'),
+                "name": activity.get('activityName'),
+                "type": activity.get('activityType', {}).get('typeKey'),
+                "start_time": activity.get('startTimeLocal'),
+                "distance_meters": activity.get('distance'),
+                "duration_seconds": activity.get('duration'),
+                "calories": activity.get('calories'),
+                "avg_hr_bpm": activity.get('averageHR'),
+                "max_hr_bpm": activity.get('maxHR'),
+                "steps": activity.get('steps'),
+            }
+            curated = {k: v for k, v in curated.items() if v is not None}
+            return json.dumps(curated, indent=2)
+        except Exception as e:
+            return f"Error retrieving last activity: {str(e)}"
+
+    @app.tool()
+    async def get_activity_details(activity_id: int, max_chart: int = 2000, max_poly: int = 4000) -> str:
+        """Get detailed time-series data for an activity (GPS, HR, pace, power over time)
+
+        Note: Returns large dataset (~hundreds of KB). Use get_activity for a compact summary.
+
+        Args:
+            activity_id: ID of the activity
+            max_chart: Max data points for charts (default 2000)
+            max_poly: Max polyline points for GPS (default 4000, set 0 to skip)
+        """
+        try:
+            details = garmin_client.get_activity_details(activity_id, maxchart=max_chart, maxpoly=max_poly)
+            if not details:
+                return f"No activity details found for ID {activity_id}"
+            return json.dumps(details, indent=2)
+        except Exception as e:
+            return f"Error retrieving activity details: {str(e)}"
+
+    @app.tool()
+    async def get_activity_power_in_timezones(activity_id: int) -> str:
+        """Get power time-in-zone distribution for an activity
+
+        Args:
+            activity_id: ID of the activity
+        """
+        try:
+            data = garmin_client.get_activity_power_in_timezones(activity_id)
+            if not data:
+                return f"No power zone data found for activity {activity_id}"
+            return json.dumps(data, indent=2)
+        except Exception as e:
+            return f"Error retrieving power zone data: {str(e)}"
+
+    @app.tool()
+    async def set_activity_name(activity_id: int, name: str) -> str:
+        """Rename an activity
+
+        Args:
+            activity_id: ID of the activity to rename
+            name: New name for the activity
+        """
+        try:
+            garmin_client.set_activity_name(str(activity_id), name)
+            return json.dumps({
+                "status": "success",
+                "activity_id": activity_id,
+                "new_name": name,
+                "message": "Activity renamed successfully"
+            }, indent=2)
+        except Exception as e:
+            return f"Error renaming activity: {str(e)}"
+
+    @app.tool()
+    async def set_activity_type(
+        activity_id: int,
+        type_id: int,
+        type_key: str,
+        parent_type_id: int
+    ) -> str:
+        """Change the type of an activity
+
+        Use get_activity_types to find valid type_id, type_key, and parent_type_id values.
+
+        Args:
+            activity_id: ID of the activity to update
+            type_id: Numeric activity type ID
+            type_key: Activity type key (e.g., 'running', 'cycling')
+            parent_type_id: Parent type ID from get_activity_types
+        """
+        try:
+            garmin_client.set_activity_type(str(activity_id), type_id, type_key, parent_type_id)
+            return json.dumps({
+                "status": "success",
+                "activity_id": activity_id,
+                "new_type": type_key,
+                "message": "Activity type updated successfully"
+            }, indent=2)
+        except Exception as e:
+            return f"Error updating activity type: {str(e)}"
+
+    @app.tool()
+    async def create_manual_activity(
+        start_datetime: str,
+        time_zone: str,
+        type_key: str,
+        duration_min: int,
+        distance_km: float = 0.0,
+        activity_name: str = "Manual Activity"
+    ) -> str:
+        """Create a manual activity entry
+
+        Logs a past activity that wasn't recorded by a device.
+
+        Args:
+            start_datetime: Start time in YYYY-MM-DDThh:mm:ss format (local time)
+            time_zone: Timezone name (e.g., 'Europe/London', 'America/New_York')
+            type_key: Activity type key (e.g., 'running', 'cycling', 'walking'). Use get_activity_types for valid values.
+            duration_min: Duration in minutes
+            distance_km: Distance in kilometers (default 0)
+            activity_name: Name for the activity (default 'Manual Activity')
+        """
+        try:
+            result = garmin_client.create_manual_activity(
+                start_datetime=start_datetime,
+                time_zone=time_zone,
+                type_key=type_key,
+                distance_km=distance_km,
+                duration_min=duration_min,
+                activity_name=activity_name,
+            )
+            if hasattr(result, 'json'):
+                result = result.json()
+            return json.dumps(result if result else {"status": "success", "message": "Activity created"}, indent=2)
+        except Exception as e:
+            return f"Error creating manual activity: {str(e)}"
+
+    @app.tool()
+    async def delete_activity(activity_id: int) -> str:
+        """Permanently delete an activity
+
+        Args:
+            activity_id: ID of the activity to delete
+        """
+        try:
+            garmin_client.delete_activity(str(activity_id))
+            return json.dumps({
+                "status": "success",
+                "activity_id": activity_id,
+                "message": f"Activity {activity_id} deleted successfully"
+            }, indent=2)
+        except Exception as e:
+            return f"Error deleting activity: {str(e)}"
+
+    @app.tool()
+    async def download_activity(activity_id: int, format: str = "TCX") -> str:
+        """Download an activity file
+
+        Returns metadata about the downloaded bytes. The raw binary cannot be
+        transmitted through MCP, but size and format are confirmed.
+
+        Args:
+            activity_id: ID of the activity to download
+            format: File format - 'TCX', 'GPX', 'ORIGINAL' (FIT zip), 'KML', or 'CSV' (splits)
+        """
+        try:
+            from garminconnect import Garmin
+            format_map = {
+                "TCX": Garmin.ActivityDownloadFormat.TCX,
+                "GPX": Garmin.ActivityDownloadFormat.GPX,
+                "ORIGINAL": Garmin.ActivityDownloadFormat.ORIGINAL,
+                "KML": Garmin.ActivityDownloadFormat.KML,
+                "CSV": Garmin.ActivityDownloadFormat.CSV,
+            }
+            dl_fmt = format_map.get(format.upper())
+            if not dl_fmt:
+                return f"Invalid format '{format}'. Valid options: TCX, GPX, ORIGINAL, KML, CSV"
+
+            data = garmin_client.download_activity(str(activity_id), dl_fmt=dl_fmt)
+            size = len(data) if isinstance(data, (bytes, bytearray)) else 0
+            return json.dumps({
+                "activity_id": activity_id,
+                "format": format.upper(),
+                "size_bytes": size,
+                "message": f"Activity data available in {format.upper()} format ({size} bytes)"
+            }, indent=2)
+        except Exception as e:
+            return f"Error downloading activity: {str(e)}"
+
     return app
